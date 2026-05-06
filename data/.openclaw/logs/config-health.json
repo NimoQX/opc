@@ -1,0 +1,16 @@
+{
+  "entries": {
+    "E:\\Pro\\MyQLHOpenclaw\\data\\.openclaw\\openclaw.json": {
+      "lastKnownGood": {
+        "hash": "f79d150a2155dbfb050330b5a704440c52dea338fc2e40099da25c43e176884a",
+        "bytes": 2782,
+        "mtimeMs": 1778051371747.0012,
+        "ctimeMs": 1778051371747.0012,
+        "hasMeta": false,
+        "gatewayMode": null,
+        "observedAt": "2026-05-06T07:09:32.305Z"
+      },
+      "lastObservedSuspiciousSignature": null
+    }
+  }
+}

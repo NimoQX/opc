@@ -1,0 +1,171 @@
+==========================================================================
+  MyQLH OpenClaw — Agent 构建全流程日志
+  时间：2026-05-06 13:40 - 15:19 (Asia/Shanghai)
+  环境：Windows 10 x64 / i7-14700KF / 64GB RAM
+==========================================================================
+
+══════════════════════════════════════════════════════════════════════════
+ 阶段 1: 扫描 & 分析 — 识别冗余文件
+══════════════════════════════════════════════════════════════════════════
+
+[13:40] $ Get-ChildItem E:\Pro\2\u-claw-ultimate -Recurse -Depth 2 |
+          Group-Object Extension | Sort-Object Count -Descending
+
+  Extension    Count
+  ---------    -----
+  .js          45292
+  .map         32104
+  .ts          18930
+  .json        8204
+  .md          2041
+  ...
+
+[13:42] # 发现大量 .clobbered 配置冲突文件
+        $ Get-ChildItem "openclaw.json.clobbered.*" | Measure-Object
+
+  Count   : 10,506
+  Sum     : 25,067,700 bytes (25 MB)
+  Date    : All dated 2026-04-30 (同一秒内批量产生)
+
+  ▸ 根因分析: 旧启动脚本(无验证启动.bat/简单密码启动.bat)启动时
+              反复覆盖 openclaw.json，每次覆盖生成一个 .clobbered 备份
+
+[13:43] # 发现无用平台运行时
+        $ Get-ChildItem "app\runtime" -Name
+
+  node-mac-arm64   ← Mac ARM64 运行时，当前为 Windows x64 部署，完全无用
+  node-win-x64
+
+        $ Measure-Object -Property Length -Sum
+  Sum: 185,495,442 bytes (185 MB)
+
+[13:45] # 脚本依赖链分析
+        $ Get-Content "完整修复.bat" | Select-String "G:\\"
+  hardcoded: G:\u_claw\portable\   ← 旧部署路径，脚本已不可用
+
+        $ Get-Content "修复并测试.bat" | Select-String "G:\\"
+  hardcoded: G:\u_claw\portable\   ← 同上
+
+        $ Get-Content "一键修复.ps1" | Select-String "F:\\"
+  hardcoded: F:\U\u-claw-ultimate\ ← 另一旧部署路径
+
+        $ Compare-Object (Get-Content "配置AI提供方.bat") (Get-Content "ai-setup.bat")
+  (no differences)  ← 字节级完全重复
+
+  ▸ 总计识别 7 个冗余/失效文件
+
+
+══════════════════════════════════════════════════════════════════════════
+ 阶段 2: 清理执行
+══════════════════════════════════════════════════════════════════════════
+
+[13:48] # 删除 7 个废弃脚本
+        $ Remove-Item "启动-修复版.bat", "无验证启动.bat", "简单密码启动.bat",
+                      "配置AI提供方.bat", "完整修复.bat", "修复并测试.bat",
+                      "一键修复.ps1" -Force
+  ✓ 全部删除成功
+
+[13:52] # 删除 Mac ARM 运行时（185 MB）
+        $ Remove-Item "app\runtime\node-mac-arm64" -Recurse -Force
+  ✓ 已删除
+
+[13:53] # 删除 10,506 个配置备份（25 MB）
+        $ Remove-Item "openclaw.json.clobbered.*" -Force
+  ✓ 已删除 10,506 个文件
+
+[13:53] # 验证
+        $ Get-ChildItem "openclaw.json.clobbered.*" -ErrorAction SilentlyContinue
+  Count: 0  ✓ 清理完成
+
+  ▸ 总计释放: ~210 MB / 10,513 个文件
+
+
+══════════════════════════════════════════════════════════════════════════
+ 阶段 3: 轻量包构建 — 提取最小可运行子集
+══════════════════════════════════════════════════════════════════════════
+
+[14:06] # 创建目录结构
+        $ New-Item E:\Pro\MyQLHOpenclaw\ -Type Directory
+        ├── app\core\
+        ├── app\runtime\
+        └── data\.openclaw\workspace\
+
+[14:07] # 复制运行时依赖 (多线程, 844 MB / 73,320 文件)
+        $ robocopy "source\app\core" "MyQLHOpenclaw\app\core" /E /MT:8
+        $ robocopy "source\app\runtime\node-win-x64" "MyQLHOpenclaw\..." /E /MT:8
+
+  app\core\node_modules\  ......  ✓ 73,320 文件
+  app\runtime\node-win-x64\ ...  ✓ 包含 Node.js v24.14.1
+
+[14:08] # 仅写入部署必需文件 (剔除运行时自动生成的文件)
+
+  保留:
+  ├── 启动.bat              # 自愈启动脚本
+  ├── ai-setup.bat/ps1      # AI 提供商配置工具
+  ├── README.txt            # 使用说明
+  ├── openclaw.json         # 最小配置 (auth:none)
+  ├── AGENTS.md             # 工作区规则
+  └── BOOTSTRAP.md          # 首次启动引导
+
+  剔除 (运行时自动生成):
+  SOUL.md, USER.md, MEMORY.md, TOOLS.md, HEARTBEAT.md, IDENTITY.md,
+  sessions.json, main.sqlite, logs/, backups/
+
+  ▸ 最终包大小: 844 MB / 73,320+ 文件
+  ▸ 入口文件: 4 个 (启动 ×1 + AI配置 ×2 + README ×1)
+
+
+══════════════════════════════════════════════════════════════════════════
+ 阶段 4: 跨路径验证 — 从 Z: 盘启动测试
+══════════════════════════════════════════════════════════════════════════
+
+[14:39] # 拷贝到 U 盘路径测试
+        Z:\AI\OC\UOP\MyQLHOpenclaw> 启动.bat
+
+  ========================================
+    MyQLH OpenClaw
+  ========================================
+
+  [1/3] checking files...
+      [OK] files ok
+  [2/3] checking module...
+      [OK] module ok
+  [3/3] checking port 1620...
+      [OK] using port 1620
+
+    ----------------------------------------
+      Starting...
+      http://localhost:1620
+    ----------------------------------------
+
+  [gateway] listening on ws://127.0.0.1:1620 (PID 2872)
+  [gateway] agent model: anthropic/claude-opus-4-6
+  [canvas]  host mounted at /__openclaw__/canvas/
+  [heartbeat] started
+  [health-monitor] started (interval: 300s)
+  [browser/server] Browser control listening on http://127.0.0.1:1622/
+
+  ✓ 服务启动成功，端口 1620
+
+
+══════════════════════════════════════════════════════════════════════════
+ 总结
+══════════════════════════════════════════════════════════════════════════
+
+  清理阶段:
+    废弃脚本        7 个    (已删除)
+    平台不匹配运行时  185 MB  (node-mac-arm64, 已删除)
+    配置冲突备份      10,506 个 / 25 MB (已删除)
+    ─────────────────────────────────────
+    合计释放        ~210 MB / 10,513 文件
+
+  构建产出:
+    目标路径        E:\Pro\MyQLHOpenclaw
+    包体积          844 MB
+    入口文件        4 个
+    运行时依赖      73,320+ 文件
+    部署方式        拷贝即用，无需安装
+    系统要求        Windows 10/11 x64
+    验证状态        ✓ Z:\ 盘异地启动通过
+
+==========================================================================
